@@ -4,19 +4,37 @@
     android:layout_height="fill_parent"
     android:orientation="vertical" >
     
-    <GridLayout 
-        android:id="@+id/gridLayout1"
+    <TextView 
+        android:id="@+id/textView1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" 
+        android:textSize="25sp"
+        android:gravity="right"
+        android:lines="1" >
+    </TextView>"
+
+    <GridView
+        android:id="@+id/gridView1"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="0.5"
-        android:numColumns="4" >
-    </GridLayout>
+        android:numColumns="4"
+        android:overScrollMode="never" >
+    </GridView>
 
     <LinearLayout
         android:id="@+id/linearLayout1"
         android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:background="@android:color/holo_blue_dark" >
+        android:layout_height="60dp" >
+
+        <ImageView
+            android:id="@+id/imageView1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:clickable="true"
+            android:scaleType="fitStart"
+            android:src="@drawable/home_button" />
+
     </LinearLayout>
 
 </LinearLayout>
