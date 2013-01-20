@@ -51,8 +51,11 @@ public class ZDrawerActivity extends Activity {
         mAppsGrid.setOnItemLongClickListener(new AppsOnItemLongClick());
 
         mCategoryNames.add("All");
-        for (String cat : mPrefs.getString("categories", "").split(",")) {
-            mCategoryNames.add(cat);
+        String cats = mPrefs.getString("categories", "");
+        if (cats.length() > 0) {
+            for (String cat : cats.split(",")) {
+                mCategoryNames.add(cat);
+            }
         }
         mCategoryNames.add("Unfiled");
 
@@ -60,12 +63,15 @@ public class ZDrawerActivity extends Activity {
             mCategoryApps.put(cat, new AppsAdapter(mAppsGrid.getContext()));
         }
 
-        for (String app_cat : mPrefs.getString("appsCategories", "").split(",")) {
-            String[] app_cat_arr = app_cat.split(":");
-            String app = app_cat_arr[0], cat = app_cat_arr[1];
+        String apps_cats = mPrefs.getString("appsCategories", "");
+        if (apps_cats.length() > 0) {
+            for (String app_cat : apps_cats.split(",")) {
+                String[] app_cat_arr = app_cat.split(":");
+                String app = app_cat_arr[0], cat = app_cat_arr[1];
 
-            if (mCategoryNames.contains(cat)) {
-                mAppsCategories.put(app, cat);
+                if (mCategoryNames.contains(cat)) {
+                    mAppsCategories.put(app, cat);
+                }
             }
         }
 
