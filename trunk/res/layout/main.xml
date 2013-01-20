@@ -11,7 +11,7 @@
         android:textSize="25sp"
         android:gravity="right"
         android:lines="1" >
-    </TextView>"
+    </TextView>
 
     <GridView
         android:id="@+id/gridView1"

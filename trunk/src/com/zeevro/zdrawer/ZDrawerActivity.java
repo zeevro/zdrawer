@@ -2,13 +2,15 @@ package com.zeevro.zdrawer;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Dictionary;
+import java.util.HashMap;
 import java.util.List;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
@@ -25,25 +27,55 @@ import android.widget.GridView;
 import android.widget.TextView;
 
 public class ZDrawerActivity extends Activity {
-    TextView                              mCategoryLabel;
-    GridView                              mAppsGrid;
+    TextView                     mCategoryLabel;
+    GridView                     mAppsGrid;
 
-    int                                   mCurrentCategory = 0;
-    CharSequence[]                        mAllCategories   = { "All" };
-    Dictionary<CharSequence, AppsAdapter> mCategories;
+    SharedPreferences            mPrefs;
+
+    ArrayList<String>            mCategoryNames  = new ArrayList<String>();
+    HashMap<String, String>      mAppsCategories = new HashMap<String, String>();
+    HashMap<String, AppsAdapter> mCategoryApps   = new HashMap<String, AppsAdapter>();
+    String                       mCurrentCategory;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         this.requestWindowFeature(Window.FEATURE_NO_TITLE);
-
         setContentView(R.layout.main);
 
         mCategoryLabel = (TextView)findViewById(R.id.textView1);
-        mCategoryLabel.setText(mAllCategories[mCurrentCategory]);
-
         mAppsGrid = (GridView)findViewById(R.id.gridView1);
+        mPrefs = getPreferences(Context.MODE_PRIVATE);
+
+        mAppsGrid.setOnItemClickListener(new AppsOnItemClick());
+        mAppsGrid.setOnItemLongClickListener(new AppsOnItemLongClick());
+
+        mCategoryNames.add("All");
+        for (String cat : mPrefs.getString("categories", "").split(",")) {
+            mCategoryNames.add(cat);
+        }
+        mCategoryNames.add("Unfiled");
+
+        for (String cat : mCategoryNames) {
+            mCategoryApps.put(cat, new AppsAdapter(mAppsGrid.getContext()));
+        }
+
+        for (String app_cat : mPrefs.getString("appsCategories", "").split(",")) {
+            String[] app_cat_arr = app_cat.split(":");
+            String app = app_cat_arr[0], cat = app_cat_arr[1];
+
+            if (mCategoryNames.contains(cat)) {
+                mAppsCategories.put(app, cat);
+            }
+        }
+
+        mCurrentCategory = mPrefs.getString("currentCategory", "All");
+        if (!mCategoryApps.containsKey(mCurrentCategory)) {
+            mCurrentCategory = "All";
+        }
+
+        mCategoryLabel.setText(mCurrentCategory);
+
         PackageManager manager = getPackageManager();
         Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
         mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
@@ -54,8 +86,6 @@ public class ZDrawerActivity extends Activity {
         for (ResolveInfo info : resolveInfos) {
             aa.add(new MyAppInfo(manager, info));
         }
-
-        mAppsGrid.setOnItemClickListener(new AppsOnItemClick());
 
         View home_button = findViewById(R.id.imageView1);
         home_button.setOnClickListener(new HomeButtonOnClick());
@@ -68,7 +98,7 @@ public class ZDrawerActivity extends Activity {
 
         public MyAppInfo(PackageManager manager, ResolveInfo resolveInfo) {
             title = resolveInfo.loadLabel(manager);
-            icon = resize(resolveInfo.activityInfo.applicationInfo.loadIcon(manager));
+            icon = resize(resolveInfo.activityInfo.loadIcon(manager));
             intent = new Intent(Intent.ACTION_MAIN);
             intent.addCategory(Intent.CATEGORY_LAUNCHER);
             intent.setComponent(new ComponentName(resolveInfo.activityInfo.applicationInfo.packageName, resolveInfo.activityInfo.name));
@@ -111,6 +141,23 @@ public class ZDrawerActivity extends Activity {
         public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
             Intent intent = ((AppsAdapter)parent.getAdapter()).getItem(position).intent;
             startActivity(intent);
+        }
+    }
+
+    class AppsOnItemLongClick implements AdapterView.OnItemLongClickListener {
+        @Override
+        public boolean onItemLongClick(AdapterView<?> parent, View v, int position, long id) {
+            AlertDialog.Builder dlgAlert = new AlertDialog.Builder(parent.getContext());
+
+            MyAppInfo app = ((AppsAdapter)parent.getAdapter()).getItem(position);
+
+            dlgAlert.setMessage("You have long-clicked on " + app.title + ". This will be used to assign categories.");
+            dlgAlert.setTitle(app.title);
+            dlgAlert.setPositiveButton("GTFO!!", null);
+            dlgAlert.setCancelable(true);
+            dlgAlert.create().show();
+
+            return false;
         }
     }
 
