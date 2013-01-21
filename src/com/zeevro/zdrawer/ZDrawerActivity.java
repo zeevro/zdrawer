@@ -1,12 +1,14 @@
 package com.zeevro.zdrawer;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -17,16 +19,22 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.GridView;
+import android.widget.ListView;
 import android.widget.TextView;
 
 public class ZDrawerActivity extends Activity {
+    Context                      mContext        = this;
+
     TextView                     mCategoryLabel;
     GridView                     mAppsGrid;
 
@@ -49,6 +57,8 @@ public class ZDrawerActivity extends Activity {
 
         mAppsGrid.setOnItemClickListener(new AppsOnItemClick());
         mAppsGrid.setOnItemLongClickListener(new AppsOnItemLongClick());
+
+        mCategoryLabel.setOnClickListener(new CategoryLabelOnClick());
 
         mCategoryNames.add("All");
         String cats = mPrefs.getString("categories", "");
@@ -129,7 +139,7 @@ public class ZDrawerActivity extends Activity {
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            MyAppInfo info = this.getItem(position);
+            MyAppInfo info = getItem(position);
 
             TextView tv = new TextView(parent.getContext());
             tv.setText(info.title);
@@ -137,6 +147,31 @@ public class ZDrawerActivity extends Activity {
             tv.setLines(2);
             tv.setGravity(Gravity.CENTER);
             tv.setPadding(0, 15, 0, 10);
+
+            return tv;
+        }
+    }
+
+    class CategoriesAdapter extends ArrayAdapter<String> {
+        public CategoriesAdapter(Context context, String[] categories) {
+            super(context, 0);
+
+            for (String cat : categories) {
+                if (cat != "All" && cat != "Unfiled") {
+                    add(cat);
+                }
+            }
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            String cat = getItem(position);
+
+            TextView tv = new TextView(parent.getContext());
+
+            tv.setText(cat);
+            tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 25);
+            tv.setLines(1);
 
             return tv;
         }
@@ -170,15 +205,37 @@ public class ZDrawerActivity extends Activity {
     class HomeButtonOnClick implements View.OnClickListener {
         @Override
         public void onClick(View v) {
-            if (mCategoryLabel.getText() == "All") {
-                mCategoryLabel.setText("General");
-            } else {
-                mCategoryLabel.setText("All");
+            int current_position = mCategoryNames.indexOf(mCurrentCategory);
+            int next_position = current_position + 1;
+
+            if (next_position >= mCategoryNames.size()) {
+                next_position = 0;
             }
+
+            mCurrentCategory = mCategoryNames.get(next_position);
+            mCategoryLabel.setText(mCurrentCategory);
         }
     }
 
-    private AppsAdapter[] loadApps(CharSequence[] categories) {
+    class CategoryLabelOnClick implements View.OnClickListener {
+        @Override
+        public void onClick(View v) {
+            final Dialog dialog = new Dialog(mContext);
+            dialog.setContentView(R.layout.categories);
+
+            ((ListView)dialog.findViewById(R.id.categoriesListView)).setAdapter(new CategoriesAdapter(mContext, mCategoryNames.toArray(new String[0])));
+            ((Button)dialog.findViewById(R.id.categoriesOkButton)).setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    dialog.dismiss();
+                }
+            });
+
+            dialog.show();
+        }
+    }
+
+    private AppsAdapter[] loadApps(Collection<String> categories) {
         ArrayList<AppsAdapter> adapters = new ArrayList<AppsAdapter>();
 
         return (AppsAdapter[])adapters.toArray();
