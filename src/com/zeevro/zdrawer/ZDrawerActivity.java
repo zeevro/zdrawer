@@ -27,15 +27,18 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemSelectedListener;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.GridView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.Spinner;
+import android.widget.SpinnerAdapter;
 import android.widget.TextView;
 
 public class ZDrawerActivity extends Activity {
-    Context                      mContext        = this;
+    Context                      mContext      = this;
 
     TextView                     mCategoryLabel;
     GridView                     mAppsGrid;
@@ -43,10 +46,10 @@ public class ZDrawerActivity extends Activity {
     SharedPreferences            mPrefs;
 
     MyAppInfo[]                  mApps;
+    HashMap<String, Integer>     mAppNames     = new HashMap<String, Integer>();
 
-    ArrayList<String>            mCategoryNames  = new ArrayList<String>();
-    HashMap<String, String>      mAppsCategories = new HashMap<String, String>();
-    HashMap<String, AppsAdapter> mCategoryApps   = new HashMap<String, AppsAdapter>();
+    ArrayList<String>            mCategories   = new ArrayList<String>();
+    HashMap<String, AppsAdapter> mCategoryApps = new HashMap<String, AppsAdapter>();
     String                       mCurrentCategory;
 
     @Override
@@ -61,16 +64,16 @@ public class ZDrawerActivity extends Activity {
 
         loadApps();
 
-        mCategoryNames.add("All");
+        mCategories.add("All");
         String cats = mPrefs.getString("categories", "System,General,Games");
         if (cats.length() > 0) {
             for (String cat : cats.split(",")) {
-                mCategoryNames.add(cat);
+                mCategories.add(cat);
             }
         }
-        mCategoryNames.add("Unfiled");
+        mCategories.add("Unfiled");
 
-        for (String cat : mCategoryNames) {
+        for (String cat : mCategories) {
             mCategoryApps.put(cat, new AppsAdapter());
         }
 
@@ -80,8 +83,8 @@ public class ZDrawerActivity extends Activity {
                 String[] app_cat_arr = app_cat.split(":");
                 String app = app_cat_arr[0], cat = app_cat_arr[1];
 
-                if (mCategoryNames.contains(cat)) {
-                    mAppsCategories.put(app, cat);
+                if (mAppNames.containsKey(app) && mCategories.contains(cat)) {
+                    mApps[mAppNames.get(app)].category = cat;
                 }
             }
         }
@@ -103,8 +106,15 @@ public class ZDrawerActivity extends Activity {
         public final Drawable icon;
         public final Drawable smallIcon;
         public final Intent   intent;
+        public String         category = "Unfiled";
+
+        private final String  mPackage;
+        private final String  mActivity;
 
         public MyAppInfo(PackageManager manager, ResolveInfo resolveInfo) {
+            mPackage = resolveInfo.activityInfo.packageName;
+            mActivity = resolveInfo.activityInfo.name;
+
             Resizer big_resizer = new Resizer(100);
             Resizer small_resizer = new Resizer(50, TypedValue.COMPLEX_UNIT_SP);
 
@@ -118,6 +128,11 @@ public class ZDrawerActivity extends Activity {
             intent.addCategory(Intent.CATEGORY_LAUNCHER);
             intent.setComponent(new ComponentName(resolveInfo.activityInfo.applicationInfo.packageName, resolveInfo.activityInfo.name));
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        }
+
+        @Override
+        public String toString() {
+            return mPackage + "." + mActivity;
         }
     }
 
@@ -172,30 +187,11 @@ public class ZDrawerActivity extends Activity {
         }
     }
 
-    class AppsCategoriesAdapter extends AppsAdapter {
-        public AppsCategoriesAdapter() {
-            super(mApps);
-        }
-
-        @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            MyAppInfo info = getItem(position);
-            LayoutInflater inflater = LayoutInflater.from(parent.getContext());
-
-            LinearLayout view = (LinearLayout)inflater.inflate(R.layout.app_categories, null);
-            TextView tv = (TextView)view.findViewById(R.id.appCategoriesText);
-            tv.setText(info.title);
-            tv.setCompoundDrawablesWithIntrinsicBounds(info.smallIcon, null, null, null);
-
-            return view;
-        }
-    }
-
     class CategoriesAdapter extends ArrayAdapter<String> {
-        public CategoriesAdapter(Context context, String[] categories) {
-            super(context, 0);
+        public CategoriesAdapter() {
+            super(mContext, 0);
 
-            for (String cat : categories) {
+            for (String cat : mCategories) {
                 if (cat != "All" && cat != "Unfiled") {
                     add(cat);
                 }
@@ -209,10 +205,82 @@ public class ZDrawerActivity extends Activity {
             TextView tv = new TextView(parent.getContext());
 
             tv.setText(cat);
+            tv.setLines(1);
             tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 25);
+
+            return tv;
+        }
+    }
+
+    class CategoriesSpinnerAdapter extends ArrayAdapter<String> implements SpinnerAdapter {
+        public CategoriesSpinnerAdapter() {
+            super(mContext, 0);
+
+            for (String cat : mCategories) {
+                if (cat != "All") {
+                    add(cat);
+                }
+            }
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            String cat = getItem(position);
+
+            TextView tv = new TextView(parent.getContext());
+
+            tv.setText(cat);
             tv.setLines(1);
 
             return tv;
+        }
+
+        @Override
+        public View getDropDownView(int position, View convertView, ViewGroup parent) {
+            String cat = getItem(position);
+
+            TextView tv = new TextView(parent.getContext());
+
+            tv.setText(cat);
+            tv.setLines(1);
+            tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+
+            return tv;
+        }
+    }
+
+    class AppsCategoriesAdapter extends AppsAdapter {
+        public AppsCategoriesAdapter() {
+            super(mApps);
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            final MyAppInfo info = getItem(position);
+            final LayoutInflater inflater = LayoutInflater.from(parent.getContext());
+
+            final LinearLayout view = (LinearLayout)inflater.inflate(R.layout.app_categories, null);
+
+            final TextView app = (TextView)view.findViewById(R.id.appCategoriesText);
+            app.setText(info.title);
+            app.setCompoundDrawablesWithIntrinsicBounds(info.smallIcon, null, null, null);
+
+            final Spinner cat = (Spinner)view.findViewById(R.id.appCategoriesSpinner);
+            CategoriesSpinnerAdapter adapter = new CategoriesSpinnerAdapter();
+            cat.setAdapter(adapter);
+            cat.setSelection(adapter.getPosition(info.category));
+            cat.setOnItemSelectedListener(new OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> parent, View v, int position, long id) {
+                    info.category = ((TextView)v).getText().toString();
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> parent) {
+                }
+            });
+
+            return view;
         }
     }
 
@@ -244,14 +312,14 @@ public class ZDrawerActivity extends Activity {
     class HomeButtonOnClick implements View.OnClickListener {
         @Override
         public void onClick(View v) {
-            int current_position = mCategoryNames.indexOf(mCurrentCategory);
+            int current_position = mCategories.indexOf(mCurrentCategory);
             int next_position = current_position + 1;
 
-            if (next_position >= mCategoryNames.size()) {
+            if (next_position >= mCategories.size()) {
                 next_position = 0;
             }
 
-            mCurrentCategory = mCategoryNames.get(next_position);
+            mCurrentCategory = mCategories.get(next_position);
             mCategoryLabel.setText(mCurrentCategory);
         }
     }
@@ -262,6 +330,9 @@ public class ZDrawerActivity extends Activity {
             AlertDialog.Builder nameDialog = new AlertDialog.Builder(mContext);
 
             nameDialog.setAdapter(new AppsCategoriesAdapter(), null);
+
+            nameDialog.setTitle("Categories");
+            nameDialog.setPositiveButton("OK", null);
 
             nameDialog.show();
         }
@@ -274,7 +345,7 @@ public class ZDrawerActivity extends Activity {
             dialog.setContentView(R.layout.categories);
             dialog.setTitle("Categories");
 
-            ((ListView)dialog.findViewById(R.id.categoriesListView)).setAdapter(new CategoriesAdapter(mContext, mCategoryNames.toArray(new String[0])));
+            ((ListView)dialog.findViewById(R.id.categoriesListView)).setAdapter(new CategoriesAdapter());
 
             ((Button)dialog.findViewById(R.id.categoriesOkButton)).setOnClickListener(new OnClickListener() {
                 @Override
@@ -301,6 +372,10 @@ public class ZDrawerActivity extends Activity {
         }
 
         mApps = apps.toArray(new MyAppInfo[0]);
+
+        for (int i = 0; i < mApps.length; i++) {
+            mAppNames.put(mApps[i].toString(), i);
+        }
     }
 
     private void bindListeners() {
