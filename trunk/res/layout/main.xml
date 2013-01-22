@@ -5,7 +5,7 @@
     android:orientation="vertical" >
     
     <TextView 
-        android:id="@+id/textView1"
+        android:id="@+id/mainCategoryLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="right"
@@ -15,7 +15,7 @@
     </TextView>
 
     <GridView
-        android:id="@+id/gridView1"
+        android:id="@+id/mainAppsGrid"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="0.5"
@@ -24,19 +24,26 @@
     </GridView>
 
     <LinearLayout
-        android:id="@+id/linearLayout1"
+        android:id="@+id/mainButtonBar"
         android:layout_width="match_parent"
         android:layout_height="60dp"
         android:orientation="horizontal" >
 
         <ImageView
-            android:id="@+id/imageView1"
+            android:id="@+id/mainHomeButton"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:adjustViewBounds="true"
             android:clickable="true"
             android:scaleType="fitCenter"
             android:src="@drawable/home_button" />
+
+        <Button
+            android:id="@+id/mainEditButton"
+            android:layout_width="wrap_content"
+            android:layout_height="fill_parent"
+            android:minWidth="100dp"
+            android:text="Edit" />
 
     </LinearLayout>
 
