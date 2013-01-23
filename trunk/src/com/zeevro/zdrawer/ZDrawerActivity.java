@@ -2,6 +2,7 @@ package com.zeevro.zdrawer;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 
@@ -10,14 +11,17 @@ import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -27,15 +31,14 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.AdapterView;
-import android.widget.AdapterView.OnItemSelectedListener;
+import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.GridView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
-import android.widget.Spinner;
-import android.widget.SpinnerAdapter;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class ZDrawerActivity extends Activity {
     Context                      mContext      = this;
@@ -64,27 +67,30 @@ public class ZDrawerActivity extends Activity {
 
         loadApps();
 
-        mCategories.add("All");
         String cats = mPrefs.getString("categories", "System,General,Games");
         if (cats.length() > 0) {
-            for (String cat : cats.split(",")) {
-                mCategories.add(cat);
+            for (String cat : ("All, " + cats + ",Unfiled").split(",")) {
+                if (cat != "" && !mCategories.contains(cat)) {
+                    mCategories.add(cat);
+                }
             }
         }
-        mCategories.add("Unfiled");
 
         for (String cat : mCategories) {
             mCategoryApps.put(cat, new AppsAdapter());
         }
 
-        String apps_cats = mPrefs.getString("appsCategories", "");
-        if (apps_cats.length() > 0) {
-            for (String app_cat : apps_cats.split(",")) {
-                String[] app_cat_arr = app_cat.split(":");
-                String app = app_cat_arr[0], cat = app_cat_arr[1];
+        mCategoryApps.get("All").addAll(mApps);
+        mCategoryApps.get("Unfiled").addAll(mApps);
+
+        String appsCats = mPrefs.getString("appsCategories", "");
+        if (appsCats.length() > 0) {
+            for (String app_cat : appsCats.split(",")) {
+                String[] appCatArr = app_cat.split(":");
+                String app = appCatArr[0], cat = appCatArr[1];
 
                 if (mAppNames.containsKey(app) && mCategories.contains(cat)) {
-                    mApps[mAppNames.get(app)].category = cat;
+                    mApps[mAppNames.get(app)].categorize(cat);
                 }
             }
         }
@@ -96,9 +102,27 @@ public class ZDrawerActivity extends Activity {
 
         mCategoryLabel.setText(mCurrentCategory);
 
-        mAppsGrid.setAdapter(new AppsAdapter(mApps));
+        mAppsGrid.setAdapter(mCategoryApps.get(mCurrentCategory));
 
         bindListeners();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+        Editor editor = mPrefs.edit();
+
+        ArrayList<String> appsCats = new ArrayList<String>();
+        for (MyAppInfo app : mApps) {
+            appsCats.add(app.toString() + ":" + app.category);
+        }
+
+        editor.putString("categories", TextUtils.join(",", mCategories));
+        editor.putString("appsCategories", TextUtils.join(",", appsCats));
+        editor.putString("currentCategory", mCurrentCategory);
+
+        editor.commit();
     }
 
     class MyAppInfo {
@@ -128,6 +152,23 @@ public class ZDrawerActivity extends Activity {
             intent.addCategory(Intent.CATEGORY_LAUNCHER);
             intent.setComponent(new ComponentName(resolveInfo.activityInfo.applicationInfo.packageName, resolveInfo.activityInfo.name));
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        }
+
+        public void categorize(String newCategory) {
+            if (!mCategories.contains(category)) {
+                return;
+            }
+
+            mCategoryApps.get(category).remove(this);
+            mCategoryApps.get(newCategory).add(this);
+            mCategoryApps.get(newCategory).sort(new Comparator<MyAppInfo>() {
+                @Override
+                public int compare(MyAppInfo lhs, MyAppInfo rhs) {
+                    return lhs.title.compareTo(rhs.title);
+                }
+            });
+
+            category = newCategory;
         }
 
         @Override
@@ -212,73 +253,24 @@ public class ZDrawerActivity extends Activity {
         }
     }
 
-    class CategoriesSpinnerAdapter extends ArrayAdapter<String> implements SpinnerAdapter {
-        public CategoriesSpinnerAdapter() {
-            super(mContext, 0);
-
-            for (String cat : mCategories) {
-                if (cat != "All") {
-                    add(cat);
-                }
-            }
-        }
-
-        @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            String cat = getItem(position);
-
-            TextView tv = new TextView(parent.getContext());
-
-            tv.setText(cat);
-            tv.setLines(1);
-
-            return tv;
-        }
-
-        @Override
-        public View getDropDownView(int position, View convertView, ViewGroup parent) {
-            String cat = getItem(position);
-
-            TextView tv = new TextView(parent.getContext());
-
-            tv.setText(cat);
-            tv.setLines(1);
-            tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
-
-            return tv;
-        }
-    }
-
     class AppsCategoriesAdapter extends AppsAdapter {
         public AppsCategoriesAdapter() {
             super(mApps);
         }
 
         @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
+        public View getView(int position, View convertView, final ViewGroup parent) {
             final MyAppInfo info = getItem(position);
             final LayoutInflater inflater = LayoutInflater.from(parent.getContext());
 
             final LinearLayout view = (LinearLayout)inflater.inflate(R.layout.app_categories, null);
 
-            final TextView app = (TextView)view.findViewById(R.id.appCategoriesText);
+            final TextView app = (TextView)view.findViewById(R.id.appCategoriesApp);
             app.setText(info.title);
             app.setCompoundDrawablesWithIntrinsicBounds(info.smallIcon, null, null, null);
 
-            final Spinner cat = (Spinner)view.findViewById(R.id.appCategoriesSpinner);
-            CategoriesSpinnerAdapter adapter = new CategoriesSpinnerAdapter();
-            cat.setAdapter(adapter);
-            cat.setSelection(adapter.getPosition(info.category));
-            cat.setOnItemSelectedListener(new OnItemSelectedListener() {
-                @Override
-                public void onItemSelected(AdapterView<?> parent, View v, int position, long id) {
-                    info.category = ((TextView)v).getText().toString();
-                }
-
-                @Override
-                public void onNothingSelected(AdapterView<?> parent) {
-                }
-            });
+            final TextView cat = (TextView)view.findViewById(R.id.appCategoriesCategory);
+            cat.setText(info.category);
 
             return view;
         }
@@ -321,18 +313,39 @@ public class ZDrawerActivity extends Activity {
 
             mCurrentCategory = mCategories.get(next_position);
             mCategoryLabel.setText(mCurrentCategory);
+
+            mAppsGrid.setAdapter(mCategoryApps.get(mCurrentCategory));
         }
     }
 
     class EditButtonOnClick implements View.OnClickListener {
         @Override
         public void onClick(View v) {
-            AlertDialog.Builder nameDialog = new AlertDialog.Builder(mContext);
+            final AlertDialog.Builder nameDialog = new AlertDialog.Builder(mContext);
 
-            nameDialog.setAdapter(new AppsCategoriesAdapter(), null);
+            ListView appsCategories = new ListView(nameDialog.getContext());
+            appsCategories.setAdapter(new AppsCategoriesAdapter());
+            appsCategories.setOnItemClickListener(new OnItemClickListener() {
+                @Override
+                public void onItemClick(AdapterView<?> parent, final View view, final int position, long id) {
+                    final AlertDialog.Builder categoryChooser = new AlertDialog.Builder(parent.getContext());
+                    categoryChooser.setTitle("Select category:");
+                    categoryChooser.setItems(mCategories.subList(1, mCategories.size()).toArray(new String[0]), new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            String category = mCategories.get(which + 1);
+                            mApps[position].categorize(category);
+                            ((TextView)view.findViewById(R.id.appCategoriesCategory)).setText(category);
+                        }
+                    });
+
+                    categoryChooser.show();
+                }
+            });
 
             nameDialog.setTitle("Categories");
             nameDialog.setPositiveButton("OK", null);
+            nameDialog.setView(appsCategories);
 
             nameDialog.show();
         }
@@ -389,5 +402,28 @@ public class ZDrawerActivity extends Activity {
 
         View edit_button = findViewById(R.id.mainEditButton);
         edit_button.setOnClickListener(new EditButtonOnClick());
+    }
+
+    class Capsule<T> {
+        private T inner = null;
+
+        public Capsule() {
+        }
+
+        public Capsule(T x) {
+            inner = x;
+        }
+
+        public void setValue(T x) {
+            inner = x;
+        }
+
+        public T getValue() {
+            return inner;
+        }
+    }
+
+    private void toast(CharSequence text) {
+        Toast.makeText(mContext, text, Toast.LENGTH_SHORT).show();
     }
 }
