@@ -5,18 +5,20 @@
     android:orientation="horizontal" >
 
     <TextView
-        android:id="@+id/appCategoriesText"
+        android:id="@+id/appCategoriesApp"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:drawablePadding="5dp"
+        android:paddingLeft="5dp"
         android:gravity="center_vertical"
         android:layout_weight="1"
         android:lines="2" />
 
-    <Spinner
-        android:id="@+id/appCategoriesSpinner"
+    <TextView
+        android:id="@+id/appCategoriesCategory"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:spinnerMode="dropdown" />
+        android:clickable="true"
+        android:paddingRight="5dp" />
 
 </LinearLayout>
