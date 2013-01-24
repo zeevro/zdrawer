@@ -34,6 +34,7 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.GridView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -51,9 +52,9 @@ public class ZDrawerActivity extends Activity {
     MyAppInfo[]                  mApps;
     HashMap<String, Integer>     mAppNames     = new HashMap<String, Integer>();
 
-    ArrayList<String>            mCategories   = new ArrayList<String>();
+    ArrayList<String>            mCategories   = new ArrayList<String>(); // TODO: Change to Categories class
     HashMap<String, AppsAdapter> mCategoryApps = new HashMap<String, AppsAdapter>();
-    String                       mCurrentCategory;
+    String                       mCurrentCategory; // TODO: Change to int maybe?
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -69,7 +70,7 @@ public class ZDrawerActivity extends Activity {
 
         String cats = mPrefs.getString("categories", "System,General,Games");
         if (cats.length() > 0) {
-            for (String cat : ("All, " + cats + ",Unfiled").split(",")) {
+            for (String cat : ("All," + cats + ",Unfiled").split(",")) {
                 if (cat != "" && !mCategories.contains(cat)) {
                     mCategories.add(cat);
                 }
@@ -125,6 +126,52 @@ public class ZDrawerActivity extends Activity {
         editor.commit();
     }
 
+    class Categories {
+        ArrayList<String> mCategoriesList = new ArrayList<String>();
+        
+        public Categories() {
+        }
+        
+        public Categories(Iterable<String> categories) {
+            for (String category : ("All," + TextUtils.join(",", categories) + ",Unfiled").split(",")) {
+                addNoSort(category);
+            }
+
+            sort();
+        }
+        
+        public boolean add(String category) {
+            if (addNoSort(category)) {
+                sort();
+                return true;
+            }
+            return false;
+        }
+        
+        private boolean addNoSort(String category) {
+            if (category != "" && !mCategoriesList.contains(category)) {
+                mCategoriesList.add(category);
+                return true;
+            }
+            return false;
+        }
+        
+        private void sort() {
+            Collections.sort(mCategoriesList, new Comparator<String>() {
+                @Override
+                public int compare(String lhs, String rhs) {
+                    if (lhs == "All") {
+                        return -1;
+                    }
+                    if (rhs == "Unfiled") {
+                        return 1;
+                    }
+                    return lhs.compareToIgnoreCase(rhs);
+                }
+            });
+        }
+    }
+    
     class MyAppInfo {
         public final String   title;
         public final Drawable icon;
@@ -164,7 +211,7 @@ public class ZDrawerActivity extends Activity {
             mCategoryApps.get(newCategory).sort(new Comparator<MyAppInfo>() {
                 @Override
                 public int compare(MyAppInfo lhs, MyAppInfo rhs) {
-                    return lhs.title.compareTo(rhs.title);
+                    return lhs.title.compareToIgnoreCase(rhs.title);
                 }
             });
 
@@ -364,6 +411,23 @@ public class ZDrawerActivity extends Activity {
                 @Override
                 public void onClick(View v) {
                     dialog.dismiss();
+                }
+            });
+            
+            ((Button)dialog.findViewById(R.id.categoriesNewButton)).setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    final AlertDialog.Builder nameDialog = new AlertDialog.Builder(dialog.getContext());
+                    final EditText nameEditor = new EditText(nameDialog.getContext());
+                    
+                    nameDialog.setView(nameEditor);
+                    nameDialog.setNegativeButton("Cancel", null);
+                    nameDialog.setPositiveButton("Add", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            // TODO: Implement
+                        }
+                    });
                 }
             });
 
