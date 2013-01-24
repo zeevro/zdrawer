@@ -52,9 +52,9 @@ public class ZDrawerActivity extends Activity {
     MyAppInfo[]                  mApps;
     HashMap<String, Integer>     mAppNames     = new HashMap<String, Integer>();
 
-    ArrayList<String>            mCategories   = new ArrayList<String>(); // TODO: Change to Categories class
+    Categories                   mCategories;
     HashMap<String, AppsAdapter> mCategoryApps = new HashMap<String, AppsAdapter>();
-    String                       mCurrentCategory; // TODO: Change to int maybe?
+    String                       mCurrentCategory;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -68,16 +68,9 @@ public class ZDrawerActivity extends Activity {
 
         loadApps();
 
-        String cats = mPrefs.getString("categories", "System,General,Games");
-        if (cats.length() > 0) {
-            for (String cat : ("All," + cats + ",Unfiled").split(",")) {
-                if (cat != "" && !mCategories.contains(cat)) {
-                    mCategories.add(cat);
-                }
-            }
-        }
+        mCategories = new Categories(mPrefs.getString("categories", "System,General,Games").split(","));
 
-        for (String cat : mCategories) {
+        for (String cat : mCategories.getAll()) {
             mCategoryApps.put(cat, new AppsAdapter());
         }
 
@@ -90,14 +83,14 @@ public class ZDrawerActivity extends Activity {
                 String[] appCatArr = app_cat.split(":");
                 String app = appCatArr[0], cat = appCatArr[1];
 
-                if (mAppNames.containsKey(app) && mCategories.contains(cat)) {
+                if (mAppNames.containsKey(app)) {
                     mApps[mAppNames.get(app)].categorize(cat);
                 }
             }
         }
 
-        mCurrentCategory = mPrefs.getString("currentCategory", "All");
-        if (!mCategoryApps.containsKey(mCurrentCategory)) {
+        mCurrentCategory = mPrefs.getString("currentCategory", "");
+        if (!mCategories.allContains(mCurrentCategory)) {
             mCurrentCategory = "All";
         }
 
@@ -119,7 +112,7 @@ public class ZDrawerActivity extends Activity {
             appsCats.add(app.toString() + ":" + app.category);
         }
 
-        editor.putString("categories", TextUtils.join(",", mCategories));
+        editor.putString("categories", TextUtils.join(",", mCategories.getEditable()));
         editor.putString("appsCategories", TextUtils.join(",", appsCats));
         editor.putString("currentCategory", mCurrentCategory);
 
@@ -128,18 +121,14 @@ public class ZDrawerActivity extends Activity {
 
     class Categories {
         ArrayList<String> mCategoriesList = new ArrayList<String>();
-        
+
         public Categories() {
         }
-        
-        public Categories(Iterable<String> categories) {
-            for (String category : ("All," + TextUtils.join(",", categories) + ",Unfiled").split(",")) {
-                addNoSort(category);
-            }
 
-            sort();
+        public Categories(String[] categories) {
+            addAll(categories);
         }
-        
+
         public boolean add(String category) {
             if (addNoSort(category)) {
                 sort();
@@ -147,31 +136,63 @@ public class ZDrawerActivity extends Activity {
             }
             return false;
         }
-        
-        private boolean addNoSort(String category) {
-            if (category != "" && !mCategoriesList.contains(category)) {
-                mCategoriesList.add(category);
-                return true;
+
+        public void addAll(String[] categories) {
+            for (String category : categories) {
+                addNoSort(category);
             }
-            return false;
+
+            sort();
         }
-        
+
+        public boolean remove(String category) {
+            return mCategoriesList.remove(category);
+        }
+
+        public boolean allContains(String category) {
+            return category == "All" || category == "Unfiled" || mCategoriesList.contains(category);
+        }
+
+        public boolean categorizableContains(String category) {
+            return category == "Unfiled" || mCategoriesList.contains(category);
+        }
+
+        @SuppressWarnings("unchecked")
+        public ArrayList<String> getAll() {
+            ArrayList<String> ret = (ArrayList<String>)mCategoriesList.clone();
+            ret.add(0, "All");
+            ret.add("Unfiled");
+
+            return ret;
+        }
+
+        @SuppressWarnings("unchecked")
+        public ArrayList<String> getCategorizable() {
+            ArrayList<String> ret = (ArrayList<String>)mCategoriesList.clone();
+            ret.add("Unfiled");
+
+            return ret;
+        }
+
+        @SuppressWarnings("unchecked")
+        public ArrayList<String> getEditable() {
+            return (ArrayList<String>)mCategoriesList.clone();
+        }
+
+        private boolean addNoSort(String category) {
+            if (category == "" || mCategoriesList.contains(category)) {
+                return false;
+            }
+
+            mCategoriesList.add(category);
+            return true;
+        }
+
         private void sort() {
-            Collections.sort(mCategoriesList, new Comparator<String>() {
-                @Override
-                public int compare(String lhs, String rhs) {
-                    if (lhs == "All") {
-                        return -1;
-                    }
-                    if (rhs == "Unfiled") {
-                        return 1;
-                    }
-                    return lhs.compareToIgnoreCase(rhs);
-                }
-            });
+            Collections.sort(mCategoriesList);
         }
     }
-    
+
     class MyAppInfo {
         public final String   title;
         public final Drawable icon;
@@ -201,9 +222,9 @@ public class ZDrawerActivity extends Activity {
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
         }
 
-        public void categorize(String newCategory) {
-            if (!mCategories.contains(category)) {
-                return;
+        public boolean categorize(String newCategory) {
+            if (!mCategories.categorizableContains(category)) {
+                return false;
             }
 
             mCategoryApps.get(category).remove(this);
@@ -216,6 +237,8 @@ public class ZDrawerActivity extends Activity {
             });
 
             category = newCategory;
+
+            return true;
         }
 
         @Override
@@ -277,13 +300,7 @@ public class ZDrawerActivity extends Activity {
 
     class CategoriesAdapter extends ArrayAdapter<String> {
         public CategoriesAdapter() {
-            super(mContext, 0);
-
-            for (String cat : mCategories) {
-                if (cat != "All" && cat != "Unfiled") {
-                    add(cat);
-                }
-            }
+            super(mContext, 0, mCategories.getEditable());
         }
 
         @Override
@@ -351,14 +368,15 @@ public class ZDrawerActivity extends Activity {
     class HomeButtonOnClick implements View.OnClickListener {
         @Override
         public void onClick(View v) {
-            int current_position = mCategories.indexOf(mCurrentCategory);
+            ArrayList<String> allCategories = mCategories.getAll();
+            int current_position = allCategories.indexOf(mCurrentCategory);
             int next_position = current_position + 1;
 
-            if (next_position >= mCategories.size()) {
+            if (next_position >= allCategories.size()) {
                 next_position = 0;
             }
 
-            mCurrentCategory = mCategories.get(next_position);
+            mCurrentCategory = allCategories.get(next_position);
             mCategoryLabel.setText(mCurrentCategory);
 
             mAppsGrid.setAdapter(mCategoryApps.get(mCurrentCategory));
@@ -369,6 +387,7 @@ public class ZDrawerActivity extends Activity {
         @Override
         public void onClick(View v) {
             final AlertDialog.Builder nameDialog = new AlertDialog.Builder(mContext);
+            final ArrayList<String> categorizableCategories = mCategories.getCategorizable();
 
             ListView appsCategories = new ListView(nameDialog.getContext());
             appsCategories.setAdapter(new AppsCategoriesAdapter());
@@ -377,12 +396,13 @@ public class ZDrawerActivity extends Activity {
                 public void onItemClick(AdapterView<?> parent, final View view, final int position, long id) {
                     final AlertDialog.Builder categoryChooser = new AlertDialog.Builder(parent.getContext());
                     categoryChooser.setTitle("Select category:");
-                    categoryChooser.setItems(mCategories.subList(1, mCategories.size()).toArray(new String[0]), new DialogInterface.OnClickListener() {
+                    categoryChooser.setItems(categorizableCategories.toArray(new String[0]), new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
-                            String category = mCategories.get(which + 1);
-                            mApps[position].categorize(category);
-                            ((TextView)view.findViewById(R.id.appCategoriesCategory)).setText(category);
+                            String category = categorizableCategories.get(which);
+                            if (mApps[position].categorize(category)) {
+                                ((TextView)view.findViewById(R.id.appCategoriesCategory)).setText(category);
+                            }
                         }
                     });
 
@@ -403,9 +423,12 @@ public class ZDrawerActivity extends Activity {
         public void onClick(View v) {
             final Dialog dialog = new Dialog(mContext);
             dialog.setContentView(R.layout.categories);
+
+            final ListView categoriesListView = (ListView)dialog.findViewById(R.id.categoriesListView);
+
             dialog.setTitle("Categories");
 
-            ((ListView)dialog.findViewById(R.id.categoriesListView)).setAdapter(new CategoriesAdapter());
+            categoriesListView.setAdapter(new CategoriesAdapter());
 
             ((Button)dialog.findViewById(R.id.categoriesOkButton)).setOnClickListener(new OnClickListener() {
                 @Override
@@ -413,21 +436,81 @@ public class ZDrawerActivity extends Activity {
                     dialog.dismiss();
                 }
             });
-            
+
             ((Button)dialog.findViewById(R.id.categoriesNewButton)).setOnClickListener(new OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     final AlertDialog.Builder nameDialog = new AlertDialog.Builder(dialog.getContext());
                     final EditText nameEditor = new EditText(nameDialog.getContext());
-                    
+                    nameEditor.setFreezesText(true);
+
+                    nameDialog.setTitle("New category:");
                     nameDialog.setView(nameEditor);
                     nameDialog.setNegativeButton("Cancel", null);
                     nameDialog.setPositiveButton("Add", new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
-                            // TODO: Implement
+                            String categoryName = nameEditor.getText().toString();
+                            if (mCategories.add(categoryName)) {
+                                categoriesListView.setAdapter(new CategoriesAdapter());
+                            }
                         }
                     });
+
+                    nameDialog.show();
+
+                    nameEditor.requestFocus();
+                }
+            });
+
+            ((Button)dialog.findViewById(R.id.categoriesEditButton)).setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    final AlertDialog.Builder nameDialog = new AlertDialog.Builder(dialog.getContext());
+                    final EditText nameEditor = new EditText(nameDialog.getContext());
+                    final String oldName = ((TextView)categoriesListView.getSelectedItem()).getText().toString();
+                    nameEditor.setFreezesText(true);
+                    nameEditor.setText(oldName);
+                    nameEditor.selectAll();
+
+                    nameDialog.setTitle("New name:");
+                    nameDialog.setView(nameEditor);
+                    nameDialog.setNegativeButton("Cancel", null);
+                    nameDialog.setPositiveButton("Rename", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            String newName = nameEditor.getText().toString();
+                            if (mCategories.remove(oldName)) {
+                                toast("0");
+                                if (!mCategories.add(newName)) {
+                                    toast("1");
+                                    mCategories.add(oldName);
+                                } else {
+                                    toast("2");
+                                    categoriesListView.setAdapter(new CategoriesAdapter());
+                                    if (mCurrentCategory == oldName) {
+                                        mCurrentCategory = newName;
+                                        mCategoryLabel.setText(mCurrentCategory);
+                                    }
+                                    mCategoryApps.put(newName, new AppsAdapter());
+                                    for (MyAppInfo app : mApps) {
+                                        app.categorize(newName);
+                                    }
+                                    mCategoryApps.remove(oldName);
+                                }
+                            }
+                        }
+                    });
+
+                    nameDialog.show();
+
+                    nameEditor.requestFocus();
+                }
+            });
+
+            ((Button)dialog.findViewById(R.id.categoriesRemoveButton)).setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View v) {
                 }
             });
 
