@@ -30,6 +30,7 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ArrayAdapter;
@@ -150,11 +151,11 @@ public class ZDrawerActivity extends Activity {
         }
 
         public boolean allContains(String category) {
-            return category == "All" || category == "Unfiled" || mCategoriesList.contains(category);
+            return category.equals("All") || category.equals("Unfiled") || mCategoriesList.contains(category);
         }
 
         public boolean categorizableContains(String category) {
-            return category == "Unfiled" || mCategoriesList.contains(category);
+            return category.equals("Unfiled") || mCategoriesList.contains(category);
         }
 
         @SuppressWarnings("unchecked")
@@ -180,7 +181,7 @@ public class ZDrawerActivity extends Activity {
         }
 
         private boolean addNoSort(String category) {
-            if (category == "" || mCategoriesList.contains(category)) {
+            if (category.isEmpty() || allContains(category)) {
                 return false;
             }
 
@@ -223,7 +224,7 @@ public class ZDrawerActivity extends Activity {
         }
 
         public boolean categorize(String newCategory) {
-            if (!mCategories.categorizableContains(category)) {
+            if (!mCategories.categorizableContains(newCategory)) {
                 return false;
             }
 
@@ -391,6 +392,7 @@ public class ZDrawerActivity extends Activity {
 
             ListView appsCategories = new ListView(nameDialog.getContext());
             appsCategories.setAdapter(new AppsCategoriesAdapter());
+            appsCategories.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
             appsCategories.setOnItemClickListener(new OnItemClickListener() {
                 @Override
                 public void onItemClick(AdapterView<?> parent, final View view, final int position, long id) {
@@ -421,100 +423,164 @@ public class ZDrawerActivity extends Activity {
     class CategoryLabelOnClick implements View.OnClickListener {
         @Override
         public void onClick(View v) {
-            final Dialog dialog = new Dialog(mContext);
-            dialog.setContentView(R.layout.categories);
+            final Dialog categoriesDialog = new Dialog(mContext);
+            categoriesDialog.setContentView(R.layout.categories);
 
-            final ListView categoriesListView = (ListView)dialog.findViewById(R.id.categoriesListView);
+            final ListView categoriesListView = (ListView)categoriesDialog.findViewById(R.id.categoriesListView);
+            final Capsule<String> selectedCategory = new Capsule<String>();
 
-            dialog.setTitle("Categories");
+            categoriesDialog.setTitle("Categories");
 
             categoriesListView.setAdapter(new CategoriesAdapter());
-
-            ((Button)dialog.findViewById(R.id.categoriesOkButton)).setOnClickListener(new OnClickListener() {
+            categoriesListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 @Override
-                public void onClick(View v) {
-                    dialog.dismiss();
+                public void onItemClick(AdapterView<?> arg0, View arg1, int arg2, long arg3) {
+                    selectedCategory.setValue(((TextView)arg1).getText().toString());
                 }
             });
 
-            ((Button)dialog.findViewById(R.id.categoriesNewButton)).setOnClickListener(new OnClickListener() {
+            ((Button)categoriesDialog.findViewById(R.id.categoriesOkButton)).setOnClickListener(new OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    final AlertDialog.Builder nameDialog = new AlertDialog.Builder(dialog.getContext());
+                    categoriesDialog.dismiss();
+                }
+            });
+
+            ((Button)categoriesDialog.findViewById(R.id.categoriesNewButton)).setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    final AlertDialog.Builder nameDialog = new AlertDialog.Builder(categoriesDialog.getContext());
                     final EditText nameEditor = new EditText(nameDialog.getContext());
                     nameEditor.setFreezesText(true);
 
                     nameDialog.setTitle("New category:");
                     nameDialog.setView(nameEditor);
-                    nameDialog.setNegativeButton("Cancel", null);
+                    nameDialog.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            ((InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE)).toggleSoftInput(InputMethodManager.HIDE_IMPLICIT_ONLY, 0);
+                        }
+                    });
                     nameDialog.setPositiveButton("Add", new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
                             String categoryName = nameEditor.getText().toString();
-                            if (mCategories.add(categoryName)) {
-                                categoriesListView.setAdapter(new CategoriesAdapter());
+                            if (!mCategories.add(categoryName)) {
+                                toast("Invalid category name");
+                                selectedCategory.setValue(null);
+                                ((InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE)).toggleSoftInput(InputMethodManager.HIDE_IMPLICIT_ONLY, 0);
+                                return;
                             }
+
+                            categoriesListView.setAdapter(new CategoriesAdapter());
+                            mCategoryApps.put(categoryName, new AppsAdapter());
+
+                            selectedCategory.setValue(null);
                         }
                     });
 
                     nameDialog.show();
 
                     nameEditor.requestFocus();
+
+                    ((InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE)).toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
                 }
             });
 
-            ((Button)dialog.findViewById(R.id.categoriesEditButton)).setOnClickListener(new OnClickListener() {
+            ((Button)categoriesDialog.findViewById(R.id.categoriesEditButton)).setOnClickListener(new OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    final AlertDialog.Builder nameDialog = new AlertDialog.Builder(dialog.getContext());
+                    if (selectedCategory.getValue() == null) {
+                        return;
+                    }
+
+                    final AlertDialog.Builder nameDialog = new AlertDialog.Builder(categoriesDialog.getContext());
                     final EditText nameEditor = new EditText(nameDialog.getContext());
-                    final String oldName = ((TextView)categoriesListView.getSelectedItem()).getText().toString();
+                    final String oldName = selectedCategory.getValue();
                     nameEditor.setFreezesText(true);
                     nameEditor.setText(oldName);
                     nameEditor.selectAll();
 
                     nameDialog.setTitle("New name:");
                     nameDialog.setView(nameEditor);
-                    nameDialog.setNegativeButton("Cancel", null);
+                    nameDialog.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            ((InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE)).toggleSoftInput(InputMethodManager.HIDE_IMPLICIT_ONLY, 0);
+                        }
+                    });
                     nameDialog.setPositiveButton("Rename", new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
                             String newName = nameEditor.getText().toString();
-                            if (mCategories.remove(oldName)) {
-                                toast("0");
-                                if (!mCategories.add(newName)) {
-                                    toast("1");
-                                    mCategories.add(oldName);
-                                } else {
-                                    toast("2");
-                                    categoriesListView.setAdapter(new CategoriesAdapter());
-                                    if (mCurrentCategory == oldName) {
-                                        mCurrentCategory = newName;
-                                        mCategoryLabel.setText(mCurrentCategory);
-                                    }
-                                    mCategoryApps.put(newName, new AppsAdapter());
-                                    for (MyAppInfo app : mApps) {
-                                        app.categorize(newName);
-                                    }
-                                    mCategoryApps.remove(oldName);
+
+                            if (!mCategories.add(newName)) {
+                                toast("Invalid category name");
+                                selectedCategory.setValue(null);
+                                ((InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE)).toggleSoftInput(InputMethodManager.HIDE_IMPLICIT_ONLY, 0);
+                                return;
+                            }
+
+                            toast("Renaming " + oldName + " --> " + newName);
+                            mCategories.remove(oldName);
+
+                            categoriesListView.setAdapter(new CategoriesAdapter());
+                            mCategoryApps.put(newName, new AppsAdapter());
+                            for (MyAppInfo app : mApps) {
+                                if (app.category == oldName) {
+                                    app.categorize(newName);
+                                    toast("Categorized " + app.title + ": " + oldName + " --> " + newName);
                                 }
                             }
+                            mCategoryApps.remove(oldName);
+                            if (mCurrentCategory == oldName) {
+                                mCurrentCategory = newName;
+                                mCategoryLabel.setText(mCurrentCategory);
+                                mAppsGrid.setAdapter(mCategoryApps.get(mCurrentCategory));
+                            }
+
+                            selectedCategory.setValue(null);
+
+                            ((InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE)).toggleSoftInput(InputMethodManager.HIDE_IMPLICIT_ONLY, 0);
+
+                            toast("Done.");
                         }
                     });
 
                     nameDialog.show();
 
                     nameEditor.requestFocus();
+
+                    ((InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE)).toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
                 }
             });
 
-            ((Button)dialog.findViewById(R.id.categoriesRemoveButton)).setOnClickListener(new OnClickListener() {
+            ((Button)categoriesDialog.findViewById(R.id.categoriesRemoveButton)).setOnClickListener(new OnClickListener() {
                 @Override
                 public void onClick(View v) {
+                    String categoryName = selectedCategory.getValue();
+                    if (!mCategories.remove(categoryName)) {
+                        selectedCategory.setValue(null);
+                        return;
+                    }
+                    categoriesListView.setAdapter(new CategoriesAdapter());
+                    for (MyAppInfo app : mApps) {
+                        if (app.category == categoryName) {
+                            app.categorize("Unfiled");
+                            toast("Categorized " + app.title + ": " + categoryName + " --> Unfiled");
+                        }
+                    }
+                    mCategoryApps.remove(categoryName);
+                    if (mCurrentCategory == categoryName) {
+                        mCurrentCategory = "All";
+                        mCategoryLabel.setText(mCurrentCategory);
+                        mAppsGrid.setAdapter(mCategoryApps.get(mCurrentCategory));
+                    }
+                    selectedCategory.setValue(null);
                 }
             });
 
-            dialog.show();
+            categoriesDialog.show();
         }
     }
 
