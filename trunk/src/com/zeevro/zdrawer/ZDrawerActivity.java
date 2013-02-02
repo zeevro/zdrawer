@@ -26,6 +26,7 @@ import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
@@ -39,6 +40,8 @@ import android.widget.EditText;
 import android.widget.GridView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.PopupMenu;
+import android.widget.PopupMenu.OnMenuItemClickListener;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -61,13 +64,13 @@ public class ZDrawerActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         this.requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+        loadApps();
         setContentView(R.layout.main);
 
         mCategoryLabel = (TextView)findViewById(R.id.mainCategoryLabel);
         mAppsGrid = (GridView)findViewById(R.id.mainAppsGrid);
         mPrefs = getPreferences(Context.MODE_PRIVATE);
-
-        loadApps();
 
         mCategories = new Categories(mPrefs.getString("categories", "System,General,Games").split(","));
 
@@ -584,6 +587,33 @@ public class ZDrawerActivity extends Activity {
         }
     }
 
+    class MenuButtonOnClick implements View.OnClickListener, OnMenuItemClickListener {
+        @Override
+        public void onClick(View v) {
+            PopupMenu menu = new PopupMenu(v.getContext(), v);
+
+            menu.setOnMenuItemClickListener(this);
+            menu.inflate(R.menu.main);
+
+            menu.show();
+        }
+
+        @Override
+        public boolean onMenuItemClick(MenuItem item) {
+            switch (item.getItemId()) {
+                case R.id.itemEditApps:
+                    new EditButtonOnClick().onClick(null);
+                    break;
+
+                case R.id.itemEditCategories:
+                    new CategoryLabelOnClick().onClick(null);
+                    break;
+            }
+
+            return true;
+        }
+    }
+
     private void loadApps() {
         PackageManager manager = getPackageManager();
         Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
@@ -615,6 +645,9 @@ public class ZDrawerActivity extends Activity {
 
         View edit_button = findViewById(R.id.mainEditButton);
         edit_button.setOnClickListener(new EditButtonOnClick());
+
+        View menu_button = findViewById(R.id.mainMenuButton);
+        menu_button.setOnClickListener(new MenuButtonOnClick());
     }
 
     class Capsule<T> {
