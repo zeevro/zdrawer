@@ -1,0 +1,3 @@
+[ ] Goto category dialog (on category label click)
+[ ] Improved loading time
+[ ] Export/Import configuration (categories, apps)
